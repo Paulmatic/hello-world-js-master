@@ -6,5 +6,20 @@
   "scripts": {
     "start": "node index.js"
   },
-  "dependencies": {}
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Paulmatic/hello-world-js-master.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Paulmatic/hello-world-js-master/issues"
+  },
+  "homepage": "https://github.com/Paulmatic/hello-world-js-master#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.23.0",
+    "eslint": "^9.23.0",
+    "globals": "^16.0.0"
+  }
 }
