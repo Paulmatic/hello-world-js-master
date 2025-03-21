@@ -12,6 +12,21 @@ pipeline {
                 git branch: 'main', url: "$REPO_URL"
             }
         }
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    sh 'npm install'
+                }
+            }
+        }
+
+        stage('Code Review (Linting)') {
+            steps {
+                script {
+                    sh 'npx eslint . || true'  // Runs ESLint and allows the pipeline to continue
+                }
+            }
+        }
 
         stage('Build Docker Image') {
             steps {
@@ -47,4 +62,12 @@ pipeline {
             }
         }
     }
+    
+    post {
+        always {
+            archiveArtifacts artifacts: 'eslint-report.xml', fingerprint: true
+        }
+    }
 }
+
+
