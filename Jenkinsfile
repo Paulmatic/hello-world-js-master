@@ -25,26 +25,24 @@ pipeline {
         }
 
         stage('Code Review (Linting)') {
-            steps {
-                script {
-                    sh '''
-                        mkdir -p reports  # Ensure reports directory exists
-                        npx eslint . --ext .js --format checkstyle --output-file reports/eslint-report.xml --debug || true
-                        echo "Checking if eslint-report.xml exists:"
-                        ls -l reports/  # Debugging: Check if file is generated
-                    '''
-                }
-            }
-            post {
-                always {
-                    script {
-                        sh 'ls -l reports/' // Extra debug step
-                    }
-                    recordIssues tools: [checkStyle(pattern: 'reports/eslint-report.xml')]
-                    archiveArtifacts artifacts: 'reports/eslint-report.xml', fingerprint: true
-                }
-            }
+    steps {
+        script {
+            sh '''
+                mkdir -p reports  # Ensure reports/ exists
+                npx eslint . --ext .js --format checkstyle --output-file reports/eslint-report.xml || true
+                echo "Checking if eslint-report.xml was created..."
+                ls -l reports/    # Debugging: List files in reports/
+                cat reports/eslint-report.xml || echo "eslint-report.xml NOT FOUND"
+            '''
         }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'reports/eslint-report.xml', fingerprint: true
+            recordIssues tools: [checkStyle(pattern: 'reports/eslint-report.xml')]
+        }
+    }
+}
 
         stage('Build Docker Image') {
             steps {
