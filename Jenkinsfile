@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         REPO_URL = 'https://github.com/Paulmatic/hello-world-js-master'
-        IMAGE_NAME = 'your-dockerhub-username/hello-world-js'
+        IMAGE_NAME = 'paulmug/hello-world-js'
     }
 
     stages {
@@ -29,13 +29,20 @@ pipeline {
             }
         }
 
+        stage('Login to Docker Hub') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                        sh 'echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin'
+                    }
+                }
+            }
+        }
+
         stage('Push to Docker Hub') {
             steps {
                 script {
-                    withDockerRegistry([credentialsId: 'docker-hub-credentials', url: '']) {
-                        sh 'docker login -u your-dockerhub-username -p your-dockerhub-password'
-                        sh 'docker push $IMAGE_NAME:latest'
-                    }
+                    sh 'docker push $IMAGE_NAME:latest'
                 }
             }
         }
