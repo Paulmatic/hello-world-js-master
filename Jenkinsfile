@@ -18,7 +18,7 @@ pipeline {
                 script {
                     sh '''
                         npm install
-                        npm install eslint --save-dev  # Ensure eslint is installed
+                        npm install eslint --save-dev  # Ensure ESLint is installed
                     '''
                 }
             }
@@ -29,8 +29,9 @@ pipeline {
                 script {
                     sh '''
                         mkdir -p reports  # Ensure reports directory exists
-                        npx eslint . --ext .js --format checkstyle --output-file reports/eslint-report.xml || true
-                        ls -l reports/  // Debugging step: Check if the file exists
+                        npx eslint . --ext .js --format checkstyle --output-file reports/eslint-report.xml --debug || true
+                        echo "Checking if eslint-report.xml exists:"
+                        ls -l reports/  # Debugging: Check if file is generated
                     '''
                 }
             }
