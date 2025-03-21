@@ -16,33 +16,42 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 script {
+                    sh 'npm install'
+                }
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                script {
                     sh '''
-                        npm install
-                        npm install eslint --save-dev  # Ensure ESLint is installed
+                        mkdir -p reports  # Ensure the reports directory exists
+                        npm test -- --ci --reporters=default --reporters=jest-junit
                     '''
+                }
+            }
+            post {
+                always {
+                    junit 'reports/junit.xml'  // Archive test results in Jenkins
                 }
             }
         }
 
         stage('Code Review (Linting)') {
-    steps {
-        script {
-            sh '''
-                mkdir -p reports  # Ensure reports/ exists
-                npx eslint . --ext .js --format checkstyle --output-file reports/eslint-report.xml || true
-                echo "Checking if eslint-report.xml was created..."
-                ls -l reports/    # Debugging: List files in reports/
-                cat reports/eslint-report.xml || echo "eslint-report.xml NOT FOUND"
-            '''
+            steps {
+                script {
+                    sh '''
+                        npx eslint . --ext .js --format checkstyle --output-file reports/eslint-report.xml || true
+                    '''
+                }
+            }
+            post {
+                always {
+                    recordIssues tools: [checkStyle(pattern: 'reports/eslint-report.xml')]
+                    archiveArtifacts artifacts: 'reports/eslint-report.xml', fingerprint: true
+                }
+            }
         }
-    }
-    post {
-        always {
-            archiveArtifacts artifacts: 'reports/eslint-report.xml', fingerprint: true
-            recordIssues tools: [checkStyle(pattern: 'reports/eslint-report.xml')]
-        }
-    }
-}
 
         stage('Build Docker Image') {
             steps {
@@ -64,9 +73,7 @@ pipeline {
             steps {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
-                        sh '''
-                            echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-                        '''
+                        sh 'echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin'
                     }
                 }
             }
