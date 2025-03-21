@@ -21,12 +21,24 @@ pipeline {
         }
 
         stage('Code Review (Linting)') {
-            steps {
-                script {
-                    sh 'npx eslint . || true'  // Runs ESLint and allows the pipeline to continue
-                }
-            }
+    steps {
+        script {
+            sh '''
+                npm install
+                mkdir -p reports  # Ensure the directory exists
+                npx eslint . --format checkstyle --output-file reports/eslint-report.xml || true
+                ls -l reports/  # Debugging step to check if the file exists
+            '''
         }
+    }
+    post {
+        always {
+            recordIssues tools: [checkStyle(pattern: 'reports/eslint-report.xml')]
+            archiveArtifacts artifacts: 'reports/eslint-report.xml', fingerprint: true
+        }
+    }
+}
+
 
         stage('Build Docker Image') {
             steps {
@@ -62,7 +74,7 @@ pipeline {
             }
         }
     }
-    
+
     post {
         always {
             archiveArtifacts artifacts: 'eslint-report.xml', fingerprint: true
