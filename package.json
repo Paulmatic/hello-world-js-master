@@ -7,6 +7,11 @@
     "start": "node index.js",
     "test": "jest --ci --reporters=default --reporters=jest-junit"
   },
+  
+  "jest": {
+    "testMatch": ["**/tests/**/*.test.js"]
+  },
+
   "jest-junit": {
     "outputDirectory": "reports",
     "outputName": "junit.xml"
