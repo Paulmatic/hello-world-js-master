@@ -30,14 +30,14 @@ pipeline {
                     sh '''
                         mkdir -p reports  # Ensure reports directory exists
                         npx eslint . --ext .js --format checkstyle --output-file reports/eslint-report.xml || true
-                        ls -l reports/  # Debugging step: Check if the file exists
+                        ls -l reports/  // Debugging step: Check if the file exists
                     '''
                 }
             }
             post {
                 always {
                     script {
-                        sh 'ls -l reports/'  # Extra debug step
+                        sh 'ls -l reports/' // Extra debug step
                     }
                     recordIssues tools: [checkStyle(pattern: 'reports/eslint-report.xml')]
                     archiveArtifacts artifacts: 'reports/eslint-report.xml', fingerprint: true
