@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        REPO_URL = 'https://github.com/your-username/your-repo.git'
+        REPO_URL = 'https://github.com/Paulmatic/hello-world-js-master'
         IMAGE_NAME = 'your-dockerhub-username/hello-world-js'
     }
 
