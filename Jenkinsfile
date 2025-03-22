@@ -75,20 +75,22 @@ pipeline {
             }
         }
 
-        stage('Verify Deployment Exists Before Updating Image') {
+        stage('Ensure Deployment Exists Before Updating Image') {
             steps {
                 script {
                     def namespaces = ["testing", "staging", "production"]
                     for (ns in namespaces) {
-                        def exists = sh(script: "kubectl get deployment hello-world-js -n ${ns} --ignore-not-found", returnStdout: true).trim()
-                        if (exists) {
-                            sh """
-                            kubectl set image deployment/hello-world-js hello-world-js=$FULL_IMAGE_PATH --namespace=${ns}
-                            kubectl rollout status deployment/hello-world-js --namespace=${ns}
-                            """
-                        } else {
-                            error("Deployment 'hello-world-js' not found in namespace '${ns}'. Please ensure it is correctly deployed.")
+                        def deploymentName = ns == "testing" ? "hello-world-test" : "hello-world-js"
+                        def exists = sh(script: "kubectl get deployment ${deploymentName} -n ${ns} --ignore-not-found", returnStdout: true).trim()
+                        if (!exists) {
+                            echo "Deployment '${deploymentName}' not found in namespace '${ns}'. Creating it now..."
+                            sh "kubectl apply -f deployment/${ns}/deployment.yaml --namespace=${ns}"
+                            sleep(10) // Give it time to initialize
                         }
+                        sh """
+                        kubectl set image deployment/${deploymentName} ${deploymentName}=$FULL_IMAGE_PATH --namespace=${ns}
+                        kubectl rollout status deployment/${deploymentName} --namespace=${ns}
+                        """
                     }
                 }
             }
