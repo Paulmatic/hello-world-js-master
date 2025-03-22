@@ -17,23 +17,19 @@ pipeline {
     stages {
         stage('Clone Repository') {
             steps {
-                git branch: 'main', credentialsId: 'github-credentials', url: "$REPO_URL"
+                git branch: 'main', credentialsId: GIT_CREDENTIALS_ID, url: "$REPO_URL"
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                script {
-                    sh 'npm install'
-                }
+                sh 'npm install'
             }
         }
 
         stage('Run Unit Tests') {
             steps {
-                script {
-                    sh 'mkdir -p reports && npm test -- --ci --reporters=default --reporters=jest-junit'
-                }
+                sh 'mkdir -p reports && npm test -- --ci --reporters=default --reporters=jest-junit'
             }
             post {
                 always {
@@ -44,9 +40,7 @@ pipeline {
 
         stage('Code Review (Linting)') {
             steps {
-                script {
-                    sh 'npx eslint . --ext .js --format checkstyle --output-file reports/eslint-report.xml || true'
-                }
+                sh 'npx eslint . --ext .js --format checkstyle --output-file reports/eslint-report.xml || true'
             }
             post {
                 always {
@@ -58,19 +52,15 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh 'docker build -t $FULL_IMAGE_PATH .'
-                }
+                sh 'docker build -t $FULL_IMAGE_PATH .'
             }
         }
 
         stage('Login & Push to Docker Hub') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
-                        sh 'echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin'
-                        sh 'docker push $IMAGE_NAME:latest'
-                    }
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                    sh 'echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin'
+                    sh 'docker push $IMAGE_NAME:latest'
                 }
             }
         }
@@ -95,22 +85,19 @@ pipeline {
             }
         }
 
-        stage('Commit and Push Updated Deployment YAML') {
+        stage('Deploy to Kubernetes') {
             steps {
-        withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-            sh """
-            git config --global user.email "jenkins@automation.com"
-            git config --global user.name "Jenkins"
-            git add deployment/testing/deployment.yaml deployment/staging/deployment.yaml deployment/production/deployment.yaml
-            git commit -m 'Updated deployment image to latest'
-
-            # Use credential helper to avoid exposing secrets in logs
-            git remote set-url origin https://$GIT_USER:$GIT_PASS@github.com/Paulmatic/hello-world-js-master.git
-            git push origin main
-            """
+                script {
+                    def namespaces = ["testing", "staging", "production"]
+                    for (ns in namespaces) {
+                        sh """
+                        kubectl set image deployment/hello-world-js hello-world-js=${FULL_IMAGE_PATH} --namespace=${ns}
+                        kubectl rollout status deployment/hello-world-js --namespace=${ns}
+                        """
+                    }
+                }
+            }
         }
-    }
-}
 
         stage('Deploy to Test Environment') {
             steps {
@@ -137,6 +124,15 @@ pipeline {
                     sh 'kubectl apply -f deployment/production/service.yaml'
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Deployment to all environments completed successfully!"
+        }
+        failure {
+            echo "❌ Deployment failed!"
         }
     }
 }
