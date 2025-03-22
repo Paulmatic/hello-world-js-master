@@ -12,7 +12,8 @@ pipeline {
         IMAGE_TAG = "latest"
         FULL_IMAGE_PATH = "us-central1-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:$IMAGE_TAG"
         CLUSTER_NAME = "my-cluster"
-        KUBE_CONFIG = credentials('gke-kubeconfig')
+        KUBE_CONFIG = credentials('gke-kubeconfig')  // Kubeconfig from Jenkins credentials
+        LOCAL_KUBECONFIG = '~/.kube/config'  // Local kubeconfig path
         GIT_CREDENTIALS_ID = 'github-credentials'
     }
 
@@ -108,28 +109,31 @@ pipeline {
 
         stage('Deploy to Test Environment') {
             steps {
-                withKubeConfig([credentialsId: 'gke-kubeconfig']) {
-                    sh 'kubectl apply -f deployment/testing/deployment.yaml'
-                    sh 'kubectl apply -f deployment/testing/service.yaml'
+                script {
+                    sh 'export KUBECONFIG=$LOCAL_KUBECONFIG' // Set local kubeconfig
                 }
+                sh 'kubectl apply -f deployment/testing/deployment.yaml'
+                sh 'kubectl apply -f deployment/testing/service.yaml'
             }
         }
 
         stage('Deploy to Staging Environment') {
             steps {
-                withKubeConfig([credentialsId: 'gke-kubeconfig']) {
-                    sh 'kubectl apply -f deployment/staging/deployment.yaml'
-                    sh 'kubectl apply -f deployment/staging/service.yaml'
+                script {
+                    sh 'export KUBECONFIG=$LOCAL_KUBECONFIG'
                 }
+                sh 'kubectl apply -f deployment/staging/deployment.yaml'
+                sh 'kubectl apply -f deployment/staging/service.yaml'
             }
         }
 
         stage('Deploy to Production Environment') {
             steps {
-                withKubeConfig([credentialsId: 'gke-kubeconfig']) {
-                    sh 'kubectl apply -f deployment/production/deployment.yaml'
-                    sh 'kubectl apply -f deployment/production/service.yaml'
+                script {
+                    sh 'export KUBECONFIG=$LOCAL_KUBECONFIG'
                 }
+                sh 'kubectl apply -f deployment/production/deployment.yaml'
+                sh 'kubectl apply -f deployment/production/service.yaml'
             }
         }
     }
