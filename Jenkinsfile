@@ -5,14 +5,14 @@ pipeline {
         REPO_URL = 'https://github.com/Paulmatic/hello-world-js-master'
         IMAGE_NAME = 'paulmug/hello-world-js'
         GCP_KEY = credentials('gcp-key')  // GCP service account JSON
-        PROJECT_ID = 'civic-network-453215-s8'  // GCP Project ID
+        PROJECT_ID = 'civic-network-453215-s8'
         REGION = 'us-central1'
         ZONE = 'us-central1-a'
         REPO = 'my-docker-repo'
         IMAGE_TAG = "latest"
         FULL_IMAGE_PATH = "us-central1-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:$IMAGE_TAG"
         CLUSTER_NAME = "my-cluster"
-        KUBE_CONFIG = credentials('gke-kubeconfig')
+        KUBE_CONFIG = credentials('gke-kubeconfig')  // Kubernetes config
         GIT_CREDENTIALS_ID = 'github-credentials'
     }
 
@@ -36,6 +36,18 @@ pipeline {
             post {
                 always {
                     junit 'reports/junit.xml'
+                }
+            }
+        }
+
+        stage('Code Review (Linting)') {
+            steps {
+                sh 'npx eslint . --ext .js --format checkstyle --output-file reports/eslint-report.xml || true'
+            }
+            post {
+                always {
+                    recordIssues tools: [checkStyle(pattern: 'reports/eslint-report.xml')]
+                    archiveArtifacts artifacts: 'reports/eslint-report.xml', fingerprint: true
                 }
             }
         }
@@ -74,20 +86,49 @@ pipeline {
                 script {
                     def namespaces = ["testing", "staging", "production"]
                     for (ns in namespaces) {
-                        def deploymentName = ns == "testing" ? "hello-world-test" : "hello-world-js"
+                        def deploymentName = ns == "testing" ? "hello-world-test" : (ns == "staging" ? "hello-world-staging" : "hello-world-js")
                         def containerName = "hello-world"
 
                         def exists = sh(script: "kubectl get deployment ${deploymentName} -n ${ns} --ignore-not-found", returnStdout: true).trim()
                         if (!exists) {
-                            echo "Deployment '${deploymentName}' not found in namespace '${ns}'. Creating it now..."
+                            echo "🚀 Deployment '${deploymentName}' not found in '${ns}'. Applying YAML..."
                             sh "kubectl apply -f deployment/${ns}/deployment.yaml --namespace=${ns}"
-                            sleep(10)
+                            sleep(10) // Wait for deployment to start
                         }
+
+                        echo "🔄 Updating image for '${deploymentName}' in '${ns}'..."
                         sh """
                         kubectl set image deployment/${deploymentName} ${containerName}=$FULL_IMAGE_PATH --namespace=${ns}
                         kubectl rollout status deployment/${deploymentName} --namespace=${ns}
                         """
                     }
+                }
+            }
+        }
+
+        stage('Deploy to Test Environment') {
+            steps {
+                withKubeConfig([credentialsId: 'gke-kubeconfig']) {
+                    sh 'kubectl apply -f deployment/testing/deployment.yaml'
+                    sh 'kubectl apply -f deployment/testing/service.yaml'
+                }
+            }
+        }
+
+        stage('Deploy to Staging Environment') {
+            steps {
+                withKubeConfig([credentialsId: 'gke-kubeconfig']) {
+                    sh 'kubectl apply -f deployment/staging/deployment.yaml'
+                    sh 'kubectl apply -f deployment/staging/service.yaml'
+                }
+            }
+        }
+
+        stage('Deploy to Production Environment') {
+            steps {
+                withKubeConfig([credentialsId: 'gke-kubeconfig']) {
+                    sh 'kubectl apply -f deployment/production/deployment.yaml'
+                    sh 'kubectl apply -f deployment/production/service.yaml'
                 }
             }
         }
