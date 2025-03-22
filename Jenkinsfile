@@ -7,6 +7,7 @@ pipeline {
         GCP_KEY = credentials('gcp-key')  // GCP service account JSON
         PROJECT_ID = 'civic-network-453215-s8'  // GCP Project ID
         REGION = 'us-central1'  // Your GKE cluster region
+        ZONE = 'us-central1-a'  // Corrected zone
         REPO = 'my-docker-repo'  // GCP Artifact Registry Repo
         IMAGE_TAG = "latest"
         FULL_IMAGE_PATH = "us-central1-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:$IMAGE_TAG"
@@ -74,7 +75,7 @@ pipeline {
                 withCredentials([file(credentialsId: 'gcp-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh """
                     gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
-                    gcloud container clusters get-credentials $CLUSTER_NAME --region=$REGION --project=$PROJECT_ID
+                    gcloud container clusters get-credentials $CLUSTER_NAME --zone=$ZONE --project=$PROJECT_ID
                     """
                 }
             }
