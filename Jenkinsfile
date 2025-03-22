@@ -10,7 +10,7 @@ pipeline {
         REPO = 'my-docker-repo'  // GCP Artifact Registry Repo
         IMAGE_TAG = "latest"
         FULL_IMAGE_PATH = "us-central1-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:$IMAGE_TAG"
-        CLUSTER_NAME = "your-cluster-name"  // Replace with your GKE cluster name
+        CLUSTER_NAME = "my-cluster"  // Replace with your GKE cluster name
         KUBE_CONFIG = credentials('gke-kubeconfig')  // Kubernetes config
         GIT_CREDENTIALS_ID = 'github-credentials'  // Jenkins GitHub credentials
     }
