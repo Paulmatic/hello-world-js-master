@@ -4,7 +4,7 @@ pipeline {
     environment {
         REPO_URL = 'https://github.com/Paulmatic/hello-world-js-master'
         IMAGE_NAME = 'paulmug/hello-world-js'
-        GCP_KEY = credentials('gcp-key')  // GCP service account JSON
+        GCP_KEY = credentials('gcp-key')  
         PROJECT_ID = 'civic-network-453215-s8'
         REGION = 'us-central1'
         ZONE = 'us-central1-a'
@@ -12,7 +12,7 @@ pipeline {
         IMAGE_TAG = "latest"
         FULL_IMAGE_PATH = "us-central1-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:$IMAGE_TAG"
         CLUSTER_NAME = "my-cluster"
-        KUBE_CONFIG = credentials('gke-kubeconfig')  // Kubernetes config
+        KUBE_CONFIG = credentials('gke-kubeconfig')
         GIT_CREDENTIALS_ID = 'github-credentials'
     }
 
@@ -86,7 +86,7 @@ pipeline {
                 script {
                     def namespaces = ["testing", "staging", "production"]
                     for (ns in namespaces) {
-                        def deploymentName = ns == "testing" ? "hello-world-test" : (ns == "staging" ? "hello-world-staging" : "hello-world-js")
+                        def deploymentName = ns == "testing" ? "hello-world-test" : (ns == "staging" ? "hello-world-staging" : "hello-world-prod")
                         def containerName = "hello-world"
 
                         def exists = sh(script: "kubectl get deployment ${deploymentName} -n ${ns} --ignore-not-found", returnStdout: true).trim()
