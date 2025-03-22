@@ -1,1 +1,11 @@
-*.log
+*.log# Ignore GCP service account key
+gcp-key.json
+
+# Ignore Terraform state files (to prevent committing sensitive infra data)
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/
+
+# Node.js dependencies
+node_modules/
+npm-debug.log
