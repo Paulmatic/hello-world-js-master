@@ -107,7 +107,7 @@ pipeline {
                     """
                 }
             }
-
+        }
 
         stage('Deploy to Test Environment') {
             steps {
