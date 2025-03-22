@@ -6,10 +6,11 @@ pipeline {
         IMAGE_NAME = 'paulmug/hello-world-js'
         GCP_KEY = credentials('gcp-key')  // GCP service account JSON
         PROJECT_ID = 'civic-network-453215-s8'  // GCP Project ID
-        REGION = 'us-central1'
+        REGION = 'us-central1'  // Your GKE cluster region
         REPO = 'my-docker-repo'  // GCP Artifact Registry Repo
         IMAGE_TAG = "latest"
         FULL_IMAGE_PATH = "us-central1-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:$IMAGE_TAG"
+        CLUSTER_NAME = "your-cluster-name"  // Replace with your GKE cluster name
         KUBE_CONFIG = credentials('gke-kubeconfig')  // Kubernetes config
         GIT_CREDENTIALS_ID = 'github-credentials'  // Jenkins GitHub credentials
     }
@@ -17,7 +18,7 @@ pipeline {
     stages {
         stage('Clone Repository') {
             steps {
-                git branch: 'main', credentialsId: GIT_CREDENTIALS_ID, url: "$REPO_URL"
+                git branch: 'main', credentialsId: 'github-credentials', url: "$REPO_URL"
             }
         }
 
@@ -56,21 +57,25 @@ pipeline {
             }
         }
 
-        stage('Login & Push to Docker Hub') {
+        stage('Push to GCP Artifact Registry') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
-                    sh 'echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin'
-                    sh 'docker push $IMAGE_NAME:latest'
+                withCredentials([file(credentialsId: 'gcp-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    sh """
+                    gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+                    gcloud auth configure-docker us-central1-docker.pkg.dev
+                    docker push $FULL_IMAGE_PATH
+                    """
                 }
             }
         }
 
-        stage('Push to GCP Artifact Registry') {
+        stage('Authenticate with GKE') {
             steps {
-                withEnv(["GOOGLE_APPLICATION_CREDENTIALS=${GCP_KEY}"]) {
-                    sh 'gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS'
-                    sh 'gcloud auth configure-docker us-central1-docker.pkg.dev'
-                    sh 'docker push $FULL_IMAGE_PATH'
+                withCredentials([file(credentialsId: 'gcp-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                    sh """
+                    gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+                    gcloud container clusters get-credentials $CLUSTER_NAME --region=$REGION --project=$PROJECT_ID
+                    """
                 }
             }
         }
@@ -91,7 +96,7 @@ pipeline {
                     def namespaces = ["testing", "staging", "production"]
                     for (ns in namespaces) {
                         sh """
-                        kubectl set image deployment/hello-world-js hello-world-js=${FULL_IMAGE_PATH} --namespace=${ns}
+                        kubectl set image deployment/hello-world-js hello-world-js=$FULL_IMAGE_PATH --namespace=${ns}
                         kubectl rollout status deployment/hello-world-js --namespace=${ns}
                         """
                     }
