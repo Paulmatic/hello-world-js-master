@@ -1,0 +1,21 @@
+---
+- name: Deploy Application to Kubernetes
+  hosts: localhost
+  gather_facts: no
+  tasks:
+
+    - name: Ensure kubeconfig is set
+      shell: export KUBECONFIG=~/.kube/config
+
+    - name: Apply Kubernetes manifests
+      command: kubectl apply -f "{{ item }}"
+      with_items:
+        - ../../deployment/testing/deployment.yaml
+        - ../../deployment/testing/service.yaml
+        - ../../deployment/staging/deployment.yaml
+        - ../../deployment/staging/service.yaml
+        - ../../deployment/production/deployment.yaml
+        - ../../deployment/production/service.yaml
+
+    - name: Verify Deployment
+      command: kubectl rollout status deployment/hello-world-test --namespace=testing

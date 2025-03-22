@@ -12,8 +12,7 @@ pipeline {
         IMAGE_TAG = "latest"
         FULL_IMAGE_PATH = "us-central1-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:$IMAGE_TAG"
         CLUSTER_NAME = "my-cluster"
-        KUBE_CONFIG = credentials('gke-kubeconfig')  // Kubeconfig from Jenkins credentials
-        LOCAL_KUBECONFIG = '~/.kube/config'  // Local kubeconfig path
+        KUBE_CONFIG = credentials('gke-kubeconfig')
         GIT_CREDENTIALS_ID = 'github-credentials'
     }
 
@@ -82,65 +81,19 @@ pipeline {
             }
         }
 
-        stage('Ensure Deployment Exists Before Updating Image') {
+        stage('Deploy with Ansible') {
             steps {
-                script {
-                    def namespaces = ["testing", "staging", "production"]
-                    for (ns in namespaces) {
-                        def deploymentName = ns == "testing" ? "hello-world-test" : (ns == "staging" ? "hello-world-staging" : "hello-world-prod")
-                        def containerName = "hello-world"
-
-                        def exists = sh(script: "kubectl get deployment ${deploymentName} -n ${ns} --ignore-not-found", returnStdout: true).trim()
-                        if (!exists) {
-                            echo "🚀 Deployment '${deploymentName}' not found in '${ns}'. Applying YAML..."
-                            sh "kubectl apply -f deployment/${ns}/deployment.yaml --namespace=${ns}"
-                            sleep(10) // Wait for deployment to start
-                        }
-
-                        echo "🔄 Updating image for '${deploymentName}' in '${ns}'..."
-                        sh """
-                        kubectl set image deployment/${deploymentName} ${containerName}=$FULL_IMAGE_PATH --namespace=${ns}
-                        kubectl rollout status deployment/${deploymentName} --namespace=${ns}
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Deploy to Test Environment') {
-            steps {
-                script {
-                    sh 'export KUBECONFIG=$LOCAL_KUBECONFIG' // Set local kubeconfig
-                }
-                sh 'kubectl apply -f deployment/testing/deployment.yaml'
-                sh 'kubectl apply -f deployment/testing/service.yaml'
-            }
-        }
-
-        stage('Deploy to Staging Environment') {
-            steps {
-                script {
-                    sh 'export KUBECONFIG=$LOCAL_KUBECONFIG'
-                }
-                sh 'kubectl apply -f deployment/staging/deployment.yaml'
-                sh 'kubectl apply -f deployment/staging/service.yaml'
-            }
-        }
-
-        stage('Deploy to Production Environment') {
-            steps {
-                script {
-                    sh 'export KUBECONFIG=$LOCAL_KUBECONFIG'
-                }
-                sh 'kubectl apply -f deployment/production/deployment.yaml'
-                sh 'kubectl apply -f deployment/production/service.yaml'
+                sh '''
+                cd ansible/playbooks
+                ansible-playbook deploy-k8s.yml
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "✅ Deployment to all environments completed successfully!"
+            echo "✅ Deployment completed successfully!"
         }
         failure {
             echo "❌ Deployment failed!"
