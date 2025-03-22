@@ -98,16 +98,15 @@ pipeline {
         stage('Commit and Push Updated Deployment YAML') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                    sh """
-                    git config --global user.email "jenkins@automation.com"
-                    git config --global user.name "Jenkins"
-                    git add deployment/testing/deployment.yaml deployment/staging/deployment.yaml deployment/production/deployment.yaml
-                    git commit -m "Updated deployment image to $FULL_IMAGE_PATH"
-                    git push https://$GIT_USER:$GIT_PASS@github.com/Paulmatic/hello-world-js-master.git
-                    """
-                }
-            }
-        }
+    sh """
+    git config --global user.email jenkins@automation.com
+    git config --global user.name Jenkins
+    git add deployment/testing/deployment.yaml deployment/staging/deployment.yaml deployment/production/deployment.yaml
+    git commit -m 'Updated deployment image to latest'
+    git push https://$GIT_USER:$GIT_PASS@github.com/Paulmatic/hello-world-js-master.git
+    """
+}
+
 
         stage('Deploy to Test Environment') {
             steps {
