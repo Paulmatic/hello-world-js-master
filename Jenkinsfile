@@ -81,17 +81,21 @@ pipeline {
             }
         }
 
-        stage('Update Kubernetes Deployment YAML') {
+        stage('Apply Kubernetes Deployment YAML') {
             steps {
-                sh """
-                sed -i 's|image: .*|image: $FULL_IMAGE_PATH|' deployment/testing/deployment.yaml
-                sed -i 's|image: .*|image: $FULL_IMAGE_PATH|' deployment/staging/deployment.yaml
-                sed -i 's|image: .*|image: $FULL_IMAGE_PATH|' deployment/production/deployment.yaml
-                """
+                script {
+                    def namespaces = ["testing", "staging", "production"]
+                    for (ns in namespaces) {
+                        sh """
+                        kubectl apply -f deployment/${ns}/deployment.yaml --namespace=${ns} || echo 'Deployment YAML applied'
+                        kubectl apply -f deployment/${ns}/service.yaml --namespace=${ns} || echo 'Service YAML applied'
+                        """
+                    }
+                }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Update Kubernetes Deployment Image') {
             steps {
                 script {
                     def namespaces = ["testing", "staging", "production"]
@@ -101,33 +105,6 @@ pipeline {
                         kubectl rollout status deployment/hello-world-js --namespace=${ns}
                         """
                     }
-                }
-            }
-        }
-
-        stage('Deploy to Test Environment') {
-            steps {
-                withKubeConfig([credentialsId: 'gke-kubeconfig']) {
-                    sh 'kubectl apply -f deployment/testing/deployment.yaml'
-                    sh 'kubectl apply -f deployment/testing/service.yaml'
-                }
-            }
-        }
-
-        stage('Deploy to Staging Environment') {
-            steps {
-                withKubeConfig([credentialsId: 'gke-kubeconfig']) {
-                    sh 'kubectl apply -f deployment/staging/deployment.yaml'
-                    sh 'kubectl apply -f deployment/staging/service.yaml'
-                }
-            }
-        }
-
-        stage('Deploy to Production Environment') {
-            steps {
-                withKubeConfig([credentialsId: 'gke-kubeconfig']) {
-                    sh 'kubectl apply -f deployment/production/deployment.yaml'
-                    sh 'kubectl apply -f deployment/production/service.yaml'
                 }
             }
         }
