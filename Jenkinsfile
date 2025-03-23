@@ -137,13 +137,6 @@ pipeline {
             }
         }
 
-        stage('Apply Autoscaling to Production') {
-            steps {
-                sh 'kubectl apply -f autoscaling/hpa.yaml --namespace=production'
-                sh 'kubectl apply -f autoscaling/vpa.yaml --namespace=production'
-            }
-        }
-
         stage('Apply ArgoCD Configuration') {
             steps {
                 sh 'kubectl apply -f argocd/argocd.yaml -n argocd'
