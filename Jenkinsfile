@@ -18,14 +18,6 @@ pipeline {
     }
 
     stages {
-        stage('Apply ArgoCD Configuration') {
-            steps {
-                echo "🚀 Applying ArgoCD configuration..."
-                sh 'kubectl apply -f argocd/argocd.yaml -n argocd'
-                sh 'kubectl rollout status deployment/argocd-server -n argocd'
-            }
-        }
-
         stage('Clone Repository') {
             steps {
                 git branch: 'main', credentialsId: 'github-credentials', url: "$REPO_URL"
@@ -70,11 +62,11 @@ pipeline {
         stage('Push to GCP Artifact Registry') {
             steps {
                 withCredentials([file(credentialsId: 'gcp-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-                    sh """
+                    sh '''
                     gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
                     gcloud auth configure-docker us-central1-docker.pkg.dev
                     docker push $FULL_IMAGE_PATH
-                    """
+                    '''
                 }
             }
         }
@@ -82,51 +74,79 @@ pipeline {
         stage('Authenticate with GKE') {
             steps {
                 withCredentials([file(credentialsId: 'gcp-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
-                    sh """
+                    sh '''
                     gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
                     gcloud container clusters get-credentials $CLUSTER_NAME --zone=$ZONE --project=$PROJECT_ID
-                    """
+                    '''
                 }
             }
         }
 
-        stage('Update Image in Kubernetes Manifests') {
+        stage('Ensure Deployment Exists Before Updating Image') {
             steps {
                 script {
-                    sh """
-                    sed -i 's|image: .*$|image: $FULL_IMAGE_PATH|' deployment/testing/deployment.yaml
-                    sed -i 's|image: .*$|image: $FULL_IMAGE_PATH|' deployment/staging/deployment.yaml
-                    sed -i 's|image: .*$|image: $FULL_IMAGE_PATH|' deployment/production/deployment.yaml
-                    """
+                    def namespaces = ["testing", "staging", "production"]
+                    for (ns in namespaces) {
+                        def deploymentName = ns == "testing" ? "hello-world-test" : (ns == "staging" ? "hello-world-staging" : "hello-world-prod")
+                        def containerName = "hello-world"
+
+                        def exists = sh(script: "kubectl get deployment ${deploymentName} -n ${ns} --ignore-not-found", returnStdout: true).trim()
+                        if (!exists) {
+                            echo "🚀 Deployment '${deploymentName}' not found in '${ns}'. Applying YAML..."
+                            sh "kubectl apply -f deployment/${ns}/deployment.yaml --namespace=${ns}"
+                            sleep(10) // Wait for deployment to start
+                        }
+
+                        echo "🔄 Updating image for '${deploymentName}' in '${ns}'..."
+                        sh """
+                        kubectl set image deployment/${deploymentName} ${containerName}=${FULL_IMAGE_PATH} --namespace=${ns}
+                        kubectl rollout status deployment/${deploymentName} --namespace=${ns}
+                        """
+                    }
                 }
             }
         }
 
-        stage('Push Updated Manifests to Git') {
+        stage('Deploy to Test Environment') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                    sh """
-                    git config --global user.email "jenkins@pipeline.com"
-                    git config --global user.name "Jenkins Pipeline"
-                    git add deployment/testing/deployment.yaml deployment/staging/deployment.yaml deployment/production/deployment.yaml
-                    git commit -m "Updated image to $FULL_IMAGE_PATH"
-                    git push https://$GIT_USER:$GIT_PASS@github.com/Paulmatic/hello-world-js-master.git main
-                    """
+                script {
+                    sh 'export KUBECONFIG=$LOCAL_KUBECONFIG'
                 }
+                sh 'kubectl apply -f deployment/testing/deployment.yaml'
+                sh 'kubectl apply -f deployment/testing/service.yaml'
             }
         }
 
-        stage('Trigger ArgoCD Sync') {
+        stage('Deploy to Staging Environment') {
             steps {
-                sh 'argocd app sync hello-world-app'
-                sh 'argocd app wait hello-world-app --timeout 300'
+                script {
+                    sh 'export KUBECONFIG=$LOCAL_KUBECONFIG'
+                }
+                sh 'kubectl apply -f deployment/staging/deployment.yaml'
+                sh 'kubectl apply -f deployment/staging/service.yaml'
+            }
+        }
+
+        stage('Deploy to Production Environment') {
+            steps {
+                script {
+                    sh 'export KUBECONFIG=$LOCAL_KUBECONFIG'
+                }
+                sh 'kubectl apply -f deployment/production/deployment.yaml'
+                sh 'kubectl apply -f deployment/production/service.yaml'
+            }
+        }
+
+        stage('Apply ArgoCD Configuration') {
+            steps {
+                sh 'kubectl apply -f argocd/argocd.yaml -n argocd'
             }
         }
     }
 
     post {
         success {
-            echo "✅ Image pushed & deployed via ArgoCD successfully!"
+            echo "✅ Deployment to all environments completed successfully!"
         }
         failure {
             echo "❌ Deployment failed!"
