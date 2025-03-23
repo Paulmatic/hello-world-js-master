@@ -12,8 +12,8 @@ pipeline {
         IMAGE_TAG = "latest"
         FULL_IMAGE_PATH = "us-central1-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:$IMAGE_TAG"
         CLUSTER_NAME = "my-cluster"
-        KUBE_CONFIG = credentials('gke-kubeconfig')  // Kubeconfig from Jenkins credentials
-        LOCAL_KUBECONFIG = '~/.kube/config'  // Local kubeconfig path
+        KUBE_CONFIG = credentials('gke-kubeconfig')  
+        LOCAL_KUBECONFIG = '~/.kube/config'  
         GIT_CREDENTIALS_ID = 'github-credentials'
     }
 
@@ -110,7 +110,7 @@ pipeline {
         stage('Deploy to Test Environment') {
             steps {
                 script {
-                    sh 'export KUBECONFIG=$LOCAL_KUBECONFIG' // Set local kubeconfig
+                    sh 'export KUBECONFIG=$LOCAL_KUBECONFIG'
                 }
                 sh 'kubectl apply -f deployment/testing/deployment.yaml'
                 sh 'kubectl apply -f deployment/testing/service.yaml'
@@ -134,6 +134,19 @@ pipeline {
                 }
                 sh 'kubectl apply -f deployment/production/deployment.yaml'
                 sh 'kubectl apply -f deployment/production/service.yaml'
+            }
+        }
+
+        stage('Apply Autoscaling to Production') {
+            steps {
+                sh 'kubectl apply -f autoscaling/hpa.yaml --namespace=production'
+                sh 'kubectl apply -f autoscaling/vpa.yaml --namespace=production'
+            }
+        }
+
+        stage('Apply ArgoCD Configuration') {
+            steps {
+                sh 'kubectl apply -f argocd/argocd.yaml -n argocd'
             }
         }
     }
